@@ -1,1 +1,2321 @@
-{"metadata":{"kernelspec":{"language":"python","display_name":"Python 3","name":"python3"},"language_info":{"name":"python","version":"3.10.13","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[{"sourceId":7809963,"sourceType":"datasetVersion","datasetId":4574236},{"sourceId":11371,"sourceType":"modelInstanceVersion","modelInstanceId":5171}],"dockerImageVersionId":30664,"isInternetEnabled":true,"language":"python","sourceType":"notebook","isGpuEnabled":false}},"nbformat_minor":4,"nbformat":4,"cells":[{"cell_type":"markdown","source":"# Demo of Google's Gemma Model - Answering Common Python Questions","metadata":{}},{"cell_type":"markdown","source":"By Nicole Michaud\n04/08/2024\n\n[Check out my Github here](http://github.com/nicolemichaud03)\n\n[Connect with me on LinkedIn](http://linkedin.com/in/nicole-michaud2)","metadata":{}},{"cell_type":"markdown","source":"<div style=\"text-align: center;\">\n<img align=\"center\" src = \"https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjdWSrhXoP4nHcjFcmbTNjhKcd3LRLcIiL2uEp4_8ilX7h_zsMu_muQlLP52eEgxvq4ejAQKy0TQKNaFC07O4o9imxqDDKF8hgaLU-iYfwmcPYGpm64psp1WHyaJOZQPImAhCDpYtc4nWEvbM3hSERTA50n08rIhftkP0rK1ai9uB-o3nWx0TQMRWt1leQ/w1200-h630-p-k-no-nu/Keras-Gemma-GfD.png\" width=\"700\">\n</div> \n","metadata":{}},{"cell_type":"markdown","source":"#### Purpose:\nThe goal of this notebook is to demonstrate how to use the Gemma LLM to answer common questions about the Python programming language. Gemma was trained on web documents, code, and mathematics, so these question and answer pairs about the Python programming language should work great with it! The data used for this task was sourced from FAQs on Python's website.","metadata":{}},{"cell_type":"markdown","source":"#### What is Gemma?\nGemma is a lightweight, open-source family of models from Google, built from the same research and technology used to create their Gemini models\nGemma models come in two different parameter size options: 2B and 7B. The 2B model is more lightweight and will perform just fine for this demo.","metadata":{}},{"cell_type":"markdown","source":"Let's get started!","metadata":{}},{"cell_type":"markdown","source":"## Data Preparation","metadata":{}},{"cell_type":"markdown","source":"First, we need to import the necessary libraries for data processing and so that we are able to run this notebook on Kaggle with the Gemma model:","metadata":{}},{"cell_type":"code","source":"import numpy as np \nimport pandas as pd \n\nimport os\nfor dirname, _, filenames in os.walk('/kaggle/input'):\n    for filename in filenames:\n        print(os.path.join(dirname, filename))","metadata":{"_uuid":"8f2839f25d086af736a60e9eeb907d3b93b6e0e5","_cell_guid":"b1076dfc-b9ad-4769-8c92-a6c4dae69d19","execution":{"iopub.status.busy":"2024-04-08T17:24:43.564020Z","iopub.execute_input":"2024-04-08T17:24:43.564473Z","iopub.status.idle":"2024-04-08T17:24:44.085057Z","shell.execute_reply.started":"2024-04-08T17:24:43.564424Z","shell.execute_reply":"2024-04-08T17:24:44.083840Z"},"trusted":true},"execution_count":1,"outputs":[{"name":"stdout","text":"/kaggle/input/gemma/keras/gemma_2b_en/2/config.json\n/kaggle/input/gemma/keras/gemma_2b_en/2/tokenizer.json\n/kaggle/input/gemma/keras/gemma_2b_en/2/metadata.json\n/kaggle/input/gemma/keras/gemma_2b_en/2/model.weights.h5\n/kaggle/input/gemma/keras/gemma_2b_en/2/assets/tokenizer/vocabulary.spm\n/kaggle/input/python-faq-qa/python_faqs.csv\n","output_type":"stream"}]},{"cell_type":"code","source":"!pip install -q -U keras-nlp\n!pip install -q -U keras>=3","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:24:44.086865Z","iopub.execute_input":"2024-04-08T17:24:44.087348Z","iopub.status.idle":"2024-04-08T17:25:22.351625Z","shell.execute_reply.started":"2024-04-08T17:24:44.087315Z","shell.execute_reply":"2024-04-08T17:25:22.350121Z"},"trusted":true},"execution_count":2,"outputs":[{"name":"stdout","text":"\u001b[31mERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\ntensorflow-decision-forests 1.8.1 requires wurlitzer, which is not installed.\u001b[0m\u001b[31m\n\u001b[0m\u001b[31mERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\ntensorflow-decision-forests 1.8.1 requires wurlitzer, which is not installed.\ntensorflow 2.15.0 requires keras<2.16,>=2.15.0, but you have keras 3.1.1 which is incompatible.\u001b[0m\u001b[31m\n\u001b[0m","output_type":"stream"}]},{"cell_type":"code","source":"import keras\nimport keras_nlp","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:25:22.353938Z","iopub.execute_input":"2024-04-08T17:25:22.354436Z","iopub.status.idle":"2024-04-08T17:25:40.645622Z","shell.execute_reply.started":"2024-04-08T17:25:22.354384Z","shell.execute_reply":"2024-04-08T17:25:40.644213Z"},"trusted":true},"execution_count":3,"outputs":[{"name":"stderr","text":"2024-04-08 17:25:24.721473: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered\n2024-04-08 17:25:24.721678: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered\n2024-04-08 17:25:24.907211: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered\n","output_type":"stream"}]},{"cell_type":"markdown","source":"Keras can be used to easily establish the basic architecture for the model to run on using either TensorFlow, JAX, or PyTorch. I am going to be using TensorFlow in this demo.","metadata":{}},{"cell_type":"code","source":"#establish a backend\nos.environ[\"KERAS_BACKEND\"] = \"tensorflow\"  \n","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:25:40.648679Z","iopub.execute_input":"2024-04-08T17:25:40.649604Z","iopub.status.idle":"2024-04-08T17:25:40.654750Z","shell.execute_reply.started":"2024-04-08T17:25:40.649455Z","shell.execute_reply":"2024-04-08T17:25:40.653467Z"},"trusted":true},"execution_count":4,"outputs":[]},{"cell_type":"markdown","source":"The dataset that is going to be used was created from <a href=\"https://docs.python.org/3/faq/general.html\">Python's FAQs page</a> and includes the common questions, their answers, and what category they fall under.","metadata":{}},{"cell_type":"code","source":"#import the dataset\nimport pandas as pd\ndocuments = pd.read_csv(\"/kaggle/input/python-faq-qa/python_faqs.csv\")\n","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:25:40.656847Z","iopub.execute_input":"2024-04-08T17:25:40.658236Z","iopub.status.idle":"2024-04-08T17:25:40.705672Z","shell.execute_reply.started":"2024-04-08T17:25:40.658173Z","shell.execute_reply":"2024-04-08T17:25:40.704464Z"},"trusted":true},"execution_count":5,"outputs":[]},{"cell_type":"markdown","source":"### Data Exploration","metadata":{}},{"cell_type":"code","source":"documents.head()","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:25:40.708647Z","iopub.execute_input":"2024-04-08T17:25:40.709111Z","iopub.status.idle":"2024-04-08T17:25:40.729820Z","shell.execute_reply.started":"2024-04-08T17:25:40.709074Z","shell.execute_reply":"2024-04-08T17:25:40.728557Z"},"trusted":true},"execution_count":6,"outputs":[{"execution_count":6,"output_type":"execute_result","data":{"text/plain":"                                            Question  \\\n0  Why does Python use indentation for grouping o...   \n1  Why am I getting strange results with simple a...   \n2  Why are floating-point calculations so inaccur...   \n3                  Why are Python strings immutable?   \n4  Why must 'self' be used explicitly in method d...   \n\n                                              Answer Category  \n0  Guido van Rossum believes that using indentati...   design  \n1                             See the next question.   design  \n2  Users are often surprised by results like this...   design  \n3  \\nThere are several advantages.\\n\\nOne is perf...   design  \n4  The idea was borrowed from Modula-3. It turns ...   design  ","text/html":"<div>\n<style scoped>\n    .dataframe tbody tr th:only-of-type {\n        vertical-align: middle;\n    }\n\n    .dataframe tbody tr th {\n        vertical-align: top;\n    }\n\n    .dataframe thead th {\n        text-align: right;\n    }\n</style>\n<table border=\"1\" class=\"dataframe\">\n  <thead>\n    <tr style=\"text-align: right;\">\n      <th></th>\n      <th>Question</th>\n      <th>Answer</th>\n      <th>Category</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <th>0</th>\n      <td>Why does Python use indentation for grouping o...</td>\n      <td>Guido van Rossum believes that using indentati...</td>\n      <td>design</td>\n    </tr>\n    <tr>\n      <th>1</th>\n      <td>Why am I getting strange results with simple a...</td>\n      <td>See the next question.</td>\n      <td>design</td>\n    </tr>\n    <tr>\n      <th>2</th>\n      <td>Why are floating-point calculations so inaccur...</td>\n      <td>Users are often surprised by results like this...</td>\n      <td>design</td>\n    </tr>\n    <tr>\n      <th>3</th>\n      <td>Why are Python strings immutable?</td>\n      <td>\\nThere are several advantages.\\n\\nOne is perf...</td>\n      <td>design</td>\n    </tr>\n    <tr>\n      <th>4</th>\n      <td>Why must 'self' be used explicitly in method d...</td>\n      <td>The idea was borrowed from Modula-3. It turns ...</td>\n      <td>design</td>\n    </tr>\n  </tbody>\n</table>\n</div>"},"metadata":{}}]},{"cell_type":"code","source":"documents.info()","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:25:54.335703Z","iopub.execute_input":"2024-04-08T17:25:54.336165Z","iopub.status.idle":"2024-04-08T17:25:54.362597Z","shell.execute_reply.started":"2024-04-08T17:25:54.336130Z","shell.execute_reply":"2024-04-08T17:25:54.361545Z"},"trusted":true},"execution_count":8,"outputs":[{"name":"stdout","text":"<class 'pandas.core.frame.DataFrame'>\nRangeIndex: 178 entries, 0 to 177\nData columns (total 3 columns):\n #   Column    Non-Null Count  Dtype \n---  ------    --------------  ----- \n 0   Question  178 non-null    object\n 1   Answer    178 non-null    object\n 2   Category  178 non-null    object\ndtypes: object(3)\nmemory usage: 4.3+ KB\n","output_type":"stream"}]},{"cell_type":"markdown","source":"The dataset contains 178 question-answer pairs.","metadata":{}},{"cell_type":"code","source":"documents['Category'].unique()","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:25:40.731629Z","iopub.execute_input":"2024-04-08T17:25:40.732888Z","iopub.status.idle":"2024-04-08T17:25:40.745980Z","shell.execute_reply.started":"2024-04-08T17:25:40.732845Z","shell.execute_reply":"2024-04-08T17:25:40.744425Z"},"trusted":true},"execution_count":7,"outputs":[{"execution_count":7,"output_type":"execute_result","data":{"text/plain":"array(['design', 'extending', 'general', 'gui', 'installed', 'library',\n       'programming', 'windows'], dtype=object)"},"metadata":{}}]},{"cell_type":"markdown","source":"The FAQ questions each fall into one of eight different categories.","metadata":{}},{"cell_type":"markdown","source":"## Modeling","metadata":{"execution":{"iopub.status.busy":"2024-03-10T19:42:13.341717Z","iopub.execute_input":"2024-03-10T19:42:13.342177Z","iopub.status.idle":"2024-03-10T19:42:13.347632Z","shell.execute_reply.started":"2024-03-10T19:42:13.342135Z","shell.execute_reply":"2024-03-10T19:42:13.346071Z"}}},{"cell_type":"markdown","source":"For this task I will be using the Gemma_2b model architecture, because I am running it on a personal computer that may not be able to support the 7b architecture. I will be using the GemmaCausalLM model, an end-to-end model for causal language modeling, configured with a preprocessor layer (GemmaCausalLMPreprocessor). By using a preprocessor, the string inputs are automatically preprocessed/tokenized, as opposed to having to do these steps prior to loading the model. The <a href=\"https://keras.io/api/keras_nlp/models/gemma/https://keras.io/api/keras_nlp/models/gemma/\" >Keras 3 API documentation</a> has more details on the different steps and options for Gemma's pretrained models.","metadata":{}},{"cell_type":"markdown","source":"#### Loading the Model:","metadata":{}},{"cell_type":"code","source":"# Load a preprocessor layer from a preset.\npreprocessor = keras_nlp.models.GemmaCausalLMPreprocessor.from_preset(\n    \"gemma_2b_en\",\n)","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:28:51.048801Z","iopub.execute_input":"2024-04-08T17:28:51.050454Z","iopub.status.idle":"2024-04-08T17:28:53.102726Z","shell.execute_reply.started":"2024-04-08T17:28:51.050397Z","shell.execute_reply":"2024-04-08T17:28:53.101445Z"},"trusted":true},"execution_count":9,"outputs":[{"name":"stderr","text":"Attaching 'tokenizer.json' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\nAttaching 'tokenizer.json' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\nAttaching 'assets/tokenizer/vocabulary.spm' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\nnormalizer.cc(51) LOG(INFO) precompiled_charsmap is empty. use identity normalization.\n","output_type":"stream"}]},{"cell_type":"code","source":"gemma_lm = keras_nlp.models.GemmaCausalLM.from_preset(\"gemma_2b_en\", preprocessor=preprocessor)\ngemma_lm.summary()","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:28:57.113266Z","iopub.execute_input":"2024-04-08T17:28:57.114379Z","iopub.status.idle":"2024-04-08T17:30:53.423205Z","shell.execute_reply.started":"2024-04-08T17:28:57.114335Z","shell.execute_reply":"2024-04-08T17:30:53.421660Z"},"trusted":true},"execution_count":10,"outputs":[{"name":"stderr","text":"Attaching 'config.json' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\nAttaching 'config.json' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\nAttaching 'model.weights.h5' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\n","output_type":"stream"},{"output_type":"display_data","data":{"text/plain":"\u001b[1mPreprocessor: \"gemma_causal_lm_preprocessor\"\u001b[0m\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Preprocessor: \"gemma_causal_lm_preprocessor\"</span>\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃\u001b[1m \u001b[0m\u001b[1mTokenizer (type)                                  \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m                                            Vocab #\u001b[0m\u001b[1m \u001b[0m┃\n┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n│ gemma_tokenizer (\u001b[38;5;33mGemmaTokenizer\u001b[0m)                   │                                             \u001b[38;5;34m256,000\u001b[0m │\n└────────────────────────────────────────────────────┴─────────────────────────────────────────────────────┘\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃<span style=\"font-weight: bold\"> Tokenizer (type)                                   </span>┃<span style=\"font-weight: bold\">                                             Vocab # </span>┃\n┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n│ gemma_tokenizer (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">GemmaTokenizer</span>)                   │                                             <span style=\"color: #00af00; text-decoration-color: #00af00\">256,000</span> │\n└────────────────────────────────────────────────────┴─────────────────────────────────────────────────────┘\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"\u001b[1mModel: \"gemma_causal_lm\"\u001b[0m\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Model: \"gemma_causal_lm\"</span>\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃\u001b[1m \u001b[0m\u001b[1mLayer (type)                 \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mOutput Shape             \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m        Param #\u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mConnected to              \u001b[0m\u001b[1m \u001b[0m┃\n┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n│ padding_mask (\u001b[38;5;33mInputLayer\u001b[0m)     │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m)              │               \u001b[38;5;34m0\u001b[0m │ -                          │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ token_ids (\u001b[38;5;33mInputLayer\u001b[0m)        │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m)              │               \u001b[38;5;34m0\u001b[0m │ -                          │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ gemma_backbone                │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m2048\u001b[0m)        │   \u001b[38;5;34m2,506,172,416\u001b[0m │ padding_mask[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m],        │\n│ (\u001b[38;5;33mGemmaBackbone\u001b[0m)               │                           │                 │ token_ids[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m]            │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ token_embedding               │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m256000\u001b[0m)      │     \u001b[38;5;34m524,288,000\u001b[0m │ gemma_backbone[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m]       │\n│ (\u001b[38;5;33mReversibleEmbedding\u001b[0m)         │                           │                 │                            │\n└───────────────────────────────┴───────────────────────────┴─────────────────┴────────────────────────────┘\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃<span style=\"font-weight: bold\"> Layer (type)                  </span>┃<span style=\"font-weight: bold\"> Output Shape              </span>┃<span style=\"font-weight: bold\">         Param # </span>┃<span style=\"font-weight: bold\"> Connected to               </span>┃\n┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n│ padding_mask (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)     │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>)              │               <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                          │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ token_ids (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)        │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>)              │               <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                          │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ gemma_backbone                │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">2048</span>)        │   <span style=\"color: #00af00; text-decoration-color: #00af00\">2,506,172,416</span> │ padding_mask[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>],        │\n│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">GemmaBackbone</span>)               │                           │                 │ token_ids[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]            │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ token_embedding               │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">256000</span>)      │     <span style=\"color: #00af00; text-decoration-color: #00af00\">524,288,000</span> │ gemma_backbone[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]       │\n│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">ReversibleEmbedding</span>)         │                           │                 │                            │\n└───────────────────────────────┴───────────────────────────┴─────────────────┴────────────────────────────┘\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"\u001b[1m Total params: \u001b[0m\u001b[38;5;34m2,506,172,416\u001b[0m (9.34 GB)\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Total params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">2,506,172,416</span> (9.34 GB)\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"\u001b[1m Trainable params: \u001b[0m\u001b[38;5;34m2,506,172,416\u001b[0m (9.34 GB)\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">2,506,172,416</span> (9.34 GB)\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"\u001b[1m Non-trainable params: \u001b[0m\u001b[38;5;34m0\u001b[0m (0.00 B)\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Non-trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> (0.00 B)\n</pre>\n"},"metadata":{}}]},{"cell_type":"markdown","source":"#### Generating prompts:","metadata":{}},{"cell_type":"markdown","source":"Even before fine-tuning the model, we can use it to generate answers. First, we have to generate some sample prompts to be able to see how the model is doing at answering common Python questions, before we fine-tune it.First, we have to generate some sample prompts to be able to see how the model is doing at answering common Python questions, before we fine-tune it.","metadata":{}},{"cell_type":"code","source":"#Need to format each question-answer pair with a template that joins together and labels the Question, Answer and Category of each\n#to be able to be interpreted by the model\nfrom tqdm.notebook import tqdm\ntqdm.pandas() \ntemplate = \"\\n\\nCategory:\\nkaggle-{Category}\\n\\nQuestion:\\n{Question}\\n\\nAnswer:\\n{Answer}\"\ndocuments[\"prompt\"] = documents.progress_apply(lambda row: template.format(Category=row.Category,\n                                                             Question=row.Question,\n                                                             Answer=row.Answer), axis=1)\ndocuments = documents.prompt.tolist()","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:31:40.013909Z","iopub.execute_input":"2024-04-08T17:31:40.014824Z","iopub.status.idle":"2024-04-08T17:31:40.070798Z","shell.execute_reply.started":"2024-04-08T17:31:40.014768Z","shell.execute_reply":"2024-04-08T17:31:40.069367Z"},"trusted":true},"execution_count":11,"outputs":[{"output_type":"display_data","data":{"text/plain":"  0%|          | 0/178 [00:00<?, ?it/s]","application/vnd.jupyter.widget-view+json":{"version_major":2,"version_minor":0,"model_id":"9d0fbc85e9414ac58eb78f8baa42c5f1"}},"metadata":{}}]},{"cell_type":"markdown","source":"For these prompts I selected 3 random questions from 3 different categories of FAQs, to get an idea of how the model performs on different types of questions.\n","metadata":{}},{"cell_type":"code","source":"# Question from \"general\" category\n\nprompt = template.format(\n    Question=\"What is Python?\",\n    Answer=\"\",\n    Category=\"\"\n)\nsampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\ngemma_lm.compile(sampler=sampler)\nprint(gemma_lm.generate(prompt, max_length=256))","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:32:23.704943Z","iopub.execute_input":"2024-04-08T17:32:23.706235Z","iopub.status.idle":"2024-04-08T17:35:55.125140Z","shell.execute_reply.started":"2024-04-08T17:32:23.706186Z","shell.execute_reply":"2024-04-08T17:35:55.124118Z"},"trusted":true},"execution_count":12,"outputs":[{"name":"stderr","text":"WARNING: All log messages before absl::InitializeLog() is called are written to STDERR\nI0000 00:00:1712597559.600229     490 device_compiler.h:186] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.\n2024-04-08 17:32:39.602030: E external/local_xla/xla/stream_executor/stream_executor_internal.h:177] SetPriority unimplemented for this stream.\n2024-04-08 17:32:39.602385: E external/local_xla/xla/stream_executor/stream_executor_internal.h:177] SetPriority unimplemented for this stream.\n","output_type":"stream"},{"name":"stdout","text":"\n\nCategory:\nkaggle-\n\nQuestion:\nWhat is Python?\n\nAnswer:\nPython is an interpreted, high-level, general-purpose programming language. It is\ndesigned to maximize programmer productivity with a combination of high-level\nsyntax, dynamic typing, dynamic binding, and high-level data structures, and a\nlow-level interpreted language, dynamic binding, and a low-level programming\nmodel. It is often used alongside other languages. Python is used to build web\napplications, data analysis tools, game engines, and more.\n\nCategory:\nkaggle-\n\nQuestion:\nWhat is R?\n\nAnswer:\nR is a programming language and software environment that supports statistical\ncomputation and graphical display. R was developed by Ross Ihaka and Robert\nSupportman in 1990, and it was originally called S-Plus. R is a programming language\nand software environment for statistical computing and graphics.\n\nCategory:\nkaggle-\n\nQuestion:\nWhat is RStudio?\n\nAnswer:\nRStudio is an integrated development environment (IDE) written in the programming\nlanguage R that was developed by a team of R developers, led by Jeffrey A.\nMontgomery (author of RStudio) at RStudio\n","output_type":"stream"}]},{"cell_type":"markdown","source":"The specific question used in the prompt was given a pretty decent answer, but the other questions generated are not related to Python (they are about another programming language, R).","metadata":{}},{"cell_type":"code","source":"# Question from \"extending\" category\n\nprompt = template.format(\n    Question=\"How do I catch the output from PyErr_Print() (or anything that prints to stdout/stderr)?\",\n    Answer=\"\",\n    Category=\"\"\n)\nsampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\ngemma_lm.compile(sampler=sampler)\nprint(gemma_lm.generate(prompt, max_length=256))","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:35:55.127516Z","iopub.execute_input":"2024-04-08T17:35:55.128288Z","iopub.status.idle":"2024-04-08T17:38:15.324183Z","shell.execute_reply.started":"2024-04-08T17:35:55.128250Z","shell.execute_reply":"2024-04-08T17:38:15.323213Z"},"trusted":true},"execution_count":13,"outputs":[{"name":"stdout","text":"\n\nCategory:\nkaggle-\n\nQuestion:\nHow do I catch the output from PyErr_Print() (or anything that prints to stdout/stderr)?\n\nAnswer:\nThis can be done using the following code:\n\nimport sys\ndef my_print(*args, **kwargs):\n    if sys.stderr is not None:\n        sys.stderr.write(\"%s\\n\" % (\", \".join(map(str,args)),)\n    if sys.stdout is not None:\n        sys.stdout.write(\"%s\" % (\" \".join(map(str,args)),)\n    return\n\nmy_print(\"hello world\")\n\nOutput:\nhello world\n\n\nI hope this helps,\n\n-John\n\nI think you'll need to use ctypes to do it.\n\n-John\n\n\nYou need to catch the exception and then do a sys.stderr.flush() and sys.stdout.flush().\n\n","output_type":"stream"}]},{"cell_type":"markdown","source":"The answer provided to this question is a bit confusing, it has text from someone named John, which seems a little out of place.","metadata":{}},{"cell_type":"code","source":"# Question from \"library\" category\n\nprompt = template.format(\n    Question=\"How do I program using threads?\",\n    Answer=\"\",\n    Category=\"\"\n)\nsampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\ngemma_lm.compile(sampler=sampler)\nprint(gemma_lm.generate(prompt, max_length=256))","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:38:15.325790Z","iopub.execute_input":"2024-04-08T17:38:15.326155Z","iopub.status.idle":"2024-04-08T17:41:38.291690Z","shell.execute_reply.started":"2024-04-08T17:38:15.326124Z","shell.execute_reply":"2024-04-08T17:41:38.289882Z"},"trusted":true},"execution_count":14,"outputs":[{"name":"stdout","text":"\n\nCategory:\nkaggle-\n\nQuestion:\nHow do I program using threads?\n\nAnswer:\nThreads are not a programming language feature. They’re a feature in the operating system that allows one program to use another program’s code. You can use threads in Java and in C++ (using the C++ thread class).\n\nThe following code shows how to start the second thread.\n\n<code>Thread t1 = new Thread(new Runnable()\n{\n    @Override\n    public void run()\n    {\n        System.out.println(\"Hello from thread 1!\");\n    }\n});\n\nt1.start();\nt1.join(); // wait for thread to complete</code>\n\nIn the above example, the second thread starts and immediately exits (because the thread is not doing anything). The thread will not run until the first thread completes (because the second thread waits for the first thread to complete).\n\nThe following code shows how to use a thread to perform some work in the background and then return to the main thread.\n\n<code>Thread t = new Thread(new Runnable()\n{\n    public void run() \n    {\n        int i;\n        for(i = 0; i <=\n","output_type":"stream"}]},{"cell_type":"markdown","source":"The above answers look okay, but some parts of them do not completely make sense for what is being asked. Let's see if we can improve them by fine-tuning the model.","metadata":{}},{"cell_type":"markdown","source":"### Fine-tuning with LoRA (Low-Rank Adaptation):","metadata":{}},{"cell_type":"markdown","source":"Gemma models and pre-trained, however, a process called fine-tuning can be used to further train them on a particular dataset!","metadata":{}},{"cell_type":"markdown","source":"According to the documentation, **LoRA** is a form of PEFT, or parameter-efficient fine-tuning. This is because it works by reducing down the number of trainable parameters and freezing model weights, causing the model to run faster and be more memory-efficient, while maintaining high-quality outputs! \nYou can learn more about the specifics of how LoRA works to fine-tune Gemma models <a href=\"https://colab.research.google.com/github/google/generative-ai-docs/blob/main/site/en/gemma/docs/lora_tuning.ipynb#scrollTo=lSGRSsRPgkzKhttps://colab.research.google.com/github/google/generative-ai-docs/blob/main/site/en/gemma/docs/lora_tuning.ipynb#scrollTo=lSGRSsRPgkzK\">here!</a>\n","metadata":{}},{"cell_type":"markdown","source":"There are other options for tuning Gemma models, but for this demo, LoRA fine-tuning via KerasNLP is a good choice because it is known to be efficient and effective.","metadata":{}},{"cell_type":"markdown","source":"When enabling LoRA, the rank must be specified. The rank is related to the number of trainable parameters to be used, and a higher rank indicates that more detailed changes can be made to the model. However, the higher the rank, the more computationally expensive it will be. Therefore, it is best to start with a relatively low rank. Here, we use rank=4.","metadata":{}},{"cell_type":"code","source":"# Enable LoRA freeze weights on the backbone, while allowing Lora to tune the query and value (question and answer) layers\n\ngemma_lm.backbone.enable_lora(rank=4)\ngemma_lm.summary()","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:42:50.111332Z","iopub.execute_input":"2024-04-08T17:42:50.112723Z","iopub.status.idle":"2024-04-08T17:42:50.314936Z","shell.execute_reply.started":"2024-04-08T17:42:50.112675Z","shell.execute_reply":"2024-04-08T17:42:50.313827Z"},"trusted":true},"execution_count":15,"outputs":[{"output_type":"display_data","data":{"text/plain":"\u001b[1mPreprocessor: \"gemma_causal_lm_preprocessor\"\u001b[0m\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Preprocessor: \"gemma_causal_lm_preprocessor\"</span>\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃\u001b[1m \u001b[0m\u001b[1mTokenizer (type)                                  \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m                                            Vocab #\u001b[0m\u001b[1m \u001b[0m┃\n┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n│ gemma_tokenizer (\u001b[38;5;33mGemmaTokenizer\u001b[0m)                   │                                             \u001b[38;5;34m256,000\u001b[0m │\n└────────────────────────────────────────────────────┴─────────────────────────────────────────────────────┘\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃<span style=\"font-weight: bold\"> Tokenizer (type)                                   </span>┃<span style=\"font-weight: bold\">                                             Vocab # </span>┃\n┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n│ gemma_tokenizer (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">GemmaTokenizer</span>)                   │                                             <span style=\"color: #00af00; text-decoration-color: #00af00\">256,000</span> │\n└────────────────────────────────────────────────────┴─────────────────────────────────────────────────────┘\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"\u001b[1mModel: \"gemma_causal_lm\"\u001b[0m\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Model: \"gemma_causal_lm\"</span>\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃\u001b[1m \u001b[0m\u001b[1mLayer (type)                 \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mOutput Shape             \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m        Param #\u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mConnected to              \u001b[0m\u001b[1m \u001b[0m┃\n┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n│ padding_mask (\u001b[38;5;33mInputLayer\u001b[0m)     │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m)              │               \u001b[38;5;34m0\u001b[0m │ -                          │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ token_ids (\u001b[38;5;33mInputLayer\u001b[0m)        │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m)              │               \u001b[38;5;34m0\u001b[0m │ -                          │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ gemma_backbone                │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m2048\u001b[0m)        │   \u001b[38;5;34m2,507,536,384\u001b[0m │ padding_mask[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m],        │\n│ (\u001b[38;5;33mGemmaBackbone\u001b[0m)               │                           │                 │ token_ids[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m]            │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ token_embedding               │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m256000\u001b[0m)      │     \u001b[38;5;34m524,288,000\u001b[0m │ gemma_backbone[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m]       │\n│ (\u001b[38;5;33mReversibleEmbedding\u001b[0m)         │                           │                 │                            │\n└───────────────────────────────┴───────────────────────────┴─────────────────┴────────────────────────────┘\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃<span style=\"font-weight: bold\"> Layer (type)                  </span>┃<span style=\"font-weight: bold\"> Output Shape              </span>┃<span style=\"font-weight: bold\">         Param # </span>┃<span style=\"font-weight: bold\"> Connected to               </span>┃\n┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n│ padding_mask (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)     │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>)              │               <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                          │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ token_ids (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)        │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>)              │               <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                          │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ gemma_backbone                │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">2048</span>)        │   <span style=\"color: #00af00; text-decoration-color: #00af00\">2,507,536,384</span> │ padding_mask[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>],        │\n│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">GemmaBackbone</span>)               │                           │                 │ token_ids[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]            │\n├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n│ token_embedding               │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">256000</span>)      │     <span style=\"color: #00af00; text-decoration-color: #00af00\">524,288,000</span> │ gemma_backbone[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]       │\n│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">ReversibleEmbedding</span>)         │                           │                 │                            │\n└───────────────────────────────┴───────────────────────────┴─────────────────┴────────────────────────────┘\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"\u001b[1m Total params: \u001b[0m\u001b[38;5;34m2,507,536,384\u001b[0m (9.34 GB)\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Total params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">2,507,536,384</span> (9.34 GB)\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"\u001b[1m Trainable params: \u001b[0m\u001b[38;5;34m1,363,968\u001b[0m (5.20 MB)\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">1,363,968</span> (5.20 MB)\n</pre>\n"},"metadata":{}},{"output_type":"display_data","data":{"text/plain":"\u001b[1m Non-trainable params: \u001b[0m\u001b[38;5;34m2,506,172,416\u001b[0m (9.34 GB)\n","text/html":"<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Non-trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">2,506,172,416</span> (9.34 GB)\n</pre>\n"},"metadata":{}}]},{"cell_type":"markdown","source":"The total params are a little more than before enabling Lora, now 2,507,536,382 from 2,506,172,416. However, the trainable params are only 1,363,968 out of those whereas all of the params were trainable previously. This is because LoRa reduces trainable parameters in order to reduce the time and memory required for the model to run.","metadata":{}},{"cell_type":"code","source":"# Limit the input sequence length to 512 (to control memory usage).\ngemma_lm.preprocessor.sequence_length = 512\n#The Adam optimizer is used in the Gemma documentation, but other optimizers can be used as well\noptimizer = keras.optimizers.AdamW(\n    learning_rate=5e-5,\n    weight_decay=0.01,\n)\n# Exclude layernorm and bias terms from decay.\noptimizer.exclude_from_weight_decay(var_names=[\"bias\", \"scale\"])\n\ngemma_lm.compile(\n    loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),\n    optimizer=optimizer,\n    weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],\n)\ngemma_lm.fit(documents, epochs=1, batch_size=1)","metadata":{"execution":{"iopub.status.busy":"2024-04-08T17:42:52.098425Z","iopub.execute_input":"2024-04-08T17:42:52.098913Z","iopub.status.idle":"2024-04-08T21:08:50.065186Z","shell.execute_reply.started":"2024-04-08T17:42:52.098876Z","shell.execute_reply":"2024-04-08T21:08:50.062891Z"},"trusted":true},"execution_count":16,"outputs":[{"name":"stdout","text":"\u001b[1m178/178\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m12357s\u001b[0m 69s/step - loss: 0.9697 - sparse_categorical_accuracy: 0.5263\n","output_type":"stream"},{"execution_count":16,"output_type":"execute_result","data":{"text/plain":"<keras.src.callbacks.history.History at 0x7ca0ac5e57e0>"},"metadata":{}}]},{"cell_type":"markdown","source":"I used the same hyperparameter values as the documentation <a href = \"https://ai.google.dev/gemma/docs/lora_tuning#lora_fine-tuninghttps://ai.google.dev/gemma/docs/lora_tuning#lora_fine-tuning\">here</a>. Some other options for fine-tuning parameters include using a different optimizer, testing out different learning rates and weight decays, and changing the number of epochs and batch size. With respect to the loss, the model is adjusting its weights with each step. How fast or slow it does this adjustment is dictated by the **learning rate**. **Weight decay** is a regularization technique that will cause the weights to exponentially decay (via the specified learning rate) until they equal zero.","metadata":{}},{"cell_type":"markdown","source":"Generally, models perform better with multiple epochs, as the model is given more time to understand the trends within the data. Also, a larger batch size (the group of data points that the model is being fit on) can improve performance, but it can also cause overfitting (model is over-trained on the training data and therefore does not know how to respond to test/unseen data). ","metadata":{}},{"cell_type":"markdown","source":"As you can see, the above model took a long time to run. This runtime will only increase as you increase the number of epochs and the batch size. Therefore you must keep in mind the tradeoff between optimal model performance and runtime/memory usage.","metadata":{}},{"cell_type":"markdown","source":"### Inference after fine-tuning","metadata":{}},{"cell_type":"markdown","source":"Let's try out the same sample questions used before to see how the answers have changed after fine-tuning.","metadata":{}},{"cell_type":"code","source":"prompt = template.format(\n    Question=\"What is Python?\",\n    Answer=\"\",\n    Category=\"\"\n)\nsampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\ngemma_lm.compile(sampler=sampler)\nprint(gemma_lm.generate(prompt, max_length=256))","metadata":{"execution":{"iopub.status.busy":"2024-04-08T21:12:07.640639Z","iopub.execute_input":"2024-04-08T21:12:07.641337Z","iopub.status.idle":"2024-04-08T21:14:58.299112Z","shell.execute_reply.started":"2024-04-08T21:12:07.641292Z","shell.execute_reply":"2024-04-08T21:14:58.297709Z"},"trusted":true},"execution_count":17,"outputs":[{"name":"stdout","text":"\n\nCategory:\nkaggle-\n\nQuestion:\nWhat is Python?\n\nAnswer:\nPython is a general-purpose, high-level programming language that can be used for many different kinds of applications, including web development, scientific computing, and system scripting. It was created by Guido van Rossum in 1991, and is now maintained by The Python Software Foundation.\n\nPython is designed to be easy to read and write, yet powerful enough to be used by professionals. It is widely used for web development due to its built-in support for HTTP and other networking protocols, as well as its support for XML processing and database access. Python is also popular among scientific researchers, due to its support for numerical computing and data analysis.\n\nPython is widely available on most major operating systems, and is free and easy to install, making it a popular choice for beginners and professionals alike.\n\nIf you're looking for a general-purpose programming language that's easy to learn and use, Python is definitely worth considering.\n","output_type":"stream"}]},{"cell_type":"code","source":"prompt = template.format(\n    Question= \"How do I catch the output from PyErr_Print() (or anything that prints to stdout/stderr)?\",\n    Answer=\"\",\n    Category=\"\"\n)\nsampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\ngemma_lm.compile(sampler=sampler)\nprint(gemma_lm.generate(prompt, max_length=256))","metadata":{"execution":{"iopub.status.busy":"2024-04-08T21:14:58.302119Z","iopub.execute_input":"2024-04-08T21:14:58.302634Z","iopub.status.idle":"2024-04-08T21:17:06.618069Z","shell.execute_reply.started":"2024-04-08T21:14:58.302591Z","shell.execute_reply":"2024-04-08T21:17:06.617011Z"},"trusted":true},"execution_count":18,"outputs":[{"name":"stdout","text":"\n\nCategory:\nkaggle-\n\nQuestion:\nHow do I catch the output from PyErr_Print() (or anything that prints to stdout/stderr)?\n\nAnswer:\nThe answer is to redirect stdout and stderr to file, and then check the file for output.\n\n\nCategory:\nPython\n\nTags:\n\nArticle By:\nMichael A. Jackson\n\nArticle Last Updated:\n2014-05-10 08:40:00 -0500\n\nArticle Notes:\nhttp://www.pythonthegeek.com/2014/05/10/how-do-i-catch-the-output-from-pyerr_print-or-anything-that-prints-to-stdout-stderr/#comment-4447\n\n","output_type":"stream"}]},{"cell_type":"code","source":"prompt = template.format(\n    Question= \"How do I program using threads?\",\n    Answer=\"\",\n    Category=\"\"\n)\nsampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\ngemma_lm.compile(sampler=sampler)\nprint(gemma_lm.generate(prompt, max_length=256))","metadata":{"execution":{"iopub.status.busy":"2024-04-08T21:17:06.619639Z","iopub.execute_input":"2024-04-08T21:17:06.620614Z","iopub.status.idle":"2024-04-08T21:17:47.148531Z","shell.execute_reply.started":"2024-04-08T21:17:06.620574Z","shell.execute_reply":"2024-04-08T21:17:47.147549Z"},"trusted":true},"execution_count":19,"outputs":[{"name":"stdout","text":"\n\nCategory:\nkaggle-\n\nQuestion:\nHow do I program using threads?\n\nAnswer:\nThe simplest way to do this is to use Python's threading library.\n\n","output_type":"stream"}]},{"cell_type":"markdown","source":"The generated answers for our sample questions are looking much better and making more sense after-fine tuning!","metadata":{}},{"cell_type":"markdown","source":"The next steps would be to continue tying out different hyperparameter values for fine-tuning to see how much we can improve the accuracy and the answers we get!","metadata":{}},{"cell_type":"markdown","source":"### Conclusion","metadata":{"execution":{"iopub.status.busy":"2024-03-10T19:42:44.012939Z","iopub.execute_input":"2024-03-10T19:42:44.013473Z","iopub.status.idle":"2024-03-10T19:42:44.018408Z","shell.execute_reply.started":"2024-03-10T19:42:44.013440Z","shell.execute_reply":"2024-03-10T19:42:44.017182Z"}}},{"cell_type":"markdown","source":"Google's new Gemma LLM models are lightweight and user friendly as they can be used with familiar APIs such as Keras. In this demo, I show you how to use Gemma with KerasNLP to answer common questions about the programming language Python! ","metadata":{}}]}
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "44a2ddd8",
+   "metadata": {
+    "papermill": {
+     "duration": 0.014469,
+     "end_time": "2024-04-28T15:01:26.830059",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:26.815590",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "# Demo of Google's Gemma Model - Answering Common Python Questions"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "e35d31ef",
+   "metadata": {
+    "papermill": {
+     "duration": 0.014359,
+     "end_time": "2024-04-28T15:01:26.858743",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:26.844384",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "By Nicole Michaud\n",
+    "04/08/2024\n",
+    "\n",
+    "[Check out my Github here](http://github.com/nicolemichaud03)\n",
+    "\n",
+    "[Connect with me on LinkedIn](http://linkedin.com/in/nicole-michaud2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4b712841",
+   "metadata": {
+    "papermill": {
+     "duration": 0.013886,
+     "end_time": "2024-04-28T15:01:26.886880",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:26.872994",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "<div style=\"text-align: center;\">\n",
+    "<img align=\"center\" src = \"https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjdWSrhXoP4nHcjFcmbTNjhKcd3LRLcIiL2uEp4_8ilX7h_zsMu_muQlLP52eEgxvq4ejAQKy0TQKNaFC07O4o9imxqDDKF8hgaLU-iYfwmcPYGpm64psp1WHyaJOZQPImAhCDpYtc4nWEvbM3hSERTA50n08rIhftkP0rK1ai9uB-o3nWx0TQMRWt1leQ/w1200-h630-p-k-no-nu/Keras-Gemma-GfD.png\" width=\"700\">\n",
+    "</div> \n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "0def2f26",
+   "metadata": {
+    "papermill": {
+     "duration": 0.014885,
+     "end_time": "2024-04-28T15:01:26.915947",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:26.901062",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "#### Purpose:\n",
+    "The goal of this notebook is to demonstrate how to use the Gemma LLM to answer common questions about the Python programming language. Gemma was trained on web documents, code, and mathematics, so these question and answer pairs about the Python programming language should work great with it! The data used for this task was sourced from FAQs on Python's website."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "21998c84",
+   "metadata": {
+    "papermill": {
+     "duration": 0.014142,
+     "end_time": "2024-04-28T15:01:26.944148",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:26.930006",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "#### What is Gemma?\n",
+    "Gemma is a lightweight, open-source family of models from Google, built from the same research and technology used to create their Gemini models\n",
+    "Gemma models come in two different parameter size options: 2B and 7B. The 2B model is more lightweight and will perform just fine for this demo."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "b3019d87",
+   "metadata": {
+    "papermill": {
+     "duration": 0.013934,
+     "end_time": "2024-04-28T15:01:26.972323",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:26.958389",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "Let's get started!"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "3aa20783",
+   "metadata": {
+    "papermill": {
+     "duration": 0.014019,
+     "end_time": "2024-04-28T15:01:27.001138",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:26.987119",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "## Data Preparation"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6d99d7b8",
+   "metadata": {
+    "papermill": {
+     "duration": 0.013933,
+     "end_time": "2024-04-28T15:01:27.029368",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:27.015435",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "First, we need to import the necessary libraries for data processing and so that we are able to run this notebook on Kaggle with the Gemma model:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "1dd8dca2",
+   "metadata": {
+    "_cell_guid": "b1076dfc-b9ad-4769-8c92-a6c4dae69d19",
+    "_uuid": "8f2839f25d086af736a60e9eeb907d3b93b6e0e5",
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:01:27.059677Z",
+     "iopub.status.busy": "2024-04-28T15:01:27.059234Z",
+     "iopub.status.idle": "2024-04-28T15:01:27.912263Z",
+     "shell.execute_reply": "2024-04-28T15:01:27.911020Z"
+    },
+    "papermill": {
+     "duration": 0.87157,
+     "end_time": "2024-04-28T15:01:27.915170",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:27.043600",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "/kaggle/input/python-faq-qa/python_faqs.csv\n",
+      "/kaggle/input/gemma/keras/gemma_2b_en/2/config.json\n",
+      "/kaggle/input/gemma/keras/gemma_2b_en/2/tokenizer.json\n",
+      "/kaggle/input/gemma/keras/gemma_2b_en/2/metadata.json\n",
+      "/kaggle/input/gemma/keras/gemma_2b_en/2/model.weights.h5\n",
+      "/kaggle/input/gemma/keras/gemma_2b_en/2/assets/tokenizer/vocabulary.spm\n"
+     ]
+    }
+   ],
+   "source": [
+    "import numpy as np \n",
+    "import pandas as pd \n",
+    "\n",
+    "import os\n",
+    "for dirname, _, filenames in os.walk('/kaggle/input'):\n",
+    "    for filename in filenames:\n",
+    "        print(os.path.join(dirname, filename))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "aefb41cb",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:01:27.946089Z",
+     "iopub.status.busy": "2024-04-28T15:01:27.945522Z",
+     "iopub.status.idle": "2024-04-28T15:02:07.621104Z",
+     "shell.execute_reply": "2024-04-28T15:02:07.619777Z"
+    },
+    "papermill": {
+     "duration": 39.694238,
+     "end_time": "2024-04-28T15:02:07.623970",
+     "exception": false,
+     "start_time": "2024-04-28T15:01:27.929732",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\u001b[31mERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\r\n",
+      "tensorflow-decision-forests 1.8.1 requires wurlitzer, which is not installed.\u001b[0m\u001b[31m\r\n",
+      "\u001b[0m\u001b[31mERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\r\n",
+      "tensorflow-decision-forests 1.8.1 requires wurlitzer, which is not installed.\r\n",
+      "tensorflow 2.15.0 requires keras<2.16,>=2.15.0, but you have keras 3.3.3 which is incompatible.\u001b[0m\u001b[31m\r\n",
+      "\u001b[0m"
+     ]
+    }
+   ],
+   "source": [
+    "!pip install -q -U keras-nlp\n",
+    "!pip install -q -U keras>=3"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "id": "2e8085a6",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:02:07.657062Z",
+     "iopub.status.busy": "2024-04-28T15:02:07.656633Z",
+     "iopub.status.idle": "2024-04-28T15:02:23.295488Z",
+     "shell.execute_reply": "2024-04-28T15:02:23.294345Z"
+    },
+    "papermill": {
+     "duration": 15.659811,
+     "end_time": "2024-04-28T15:02:23.298389",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:07.638578",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2024-04-28 15:02:09.838743: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered\n",
+      "2024-04-28 15:02:09.838945: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered\n",
+      "2024-04-28 15:02:09.996362: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered\n"
+     ]
+    }
+   ],
+   "source": [
+    "import keras\n",
+    "import keras_nlp"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "375ca3ff",
+   "metadata": {
+    "papermill": {
+     "duration": 0.014272,
+     "end_time": "2024-04-28T15:02:23.328074",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.313802",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "Keras can be used to easily establish the basic architecture for the model to run on using either TensorFlow, JAX, or PyTorch. I am going to be using TensorFlow in this demo."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "id": "baa79016",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:02:23.360014Z",
+     "iopub.status.busy": "2024-04-28T15:02:23.359218Z",
+     "iopub.status.idle": "2024-04-28T15:02:23.364774Z",
+     "shell.execute_reply": "2024-04-28T15:02:23.363708Z"
+    },
+    "papermill": {
+     "duration": 0.024186,
+     "end_time": "2024-04-28T15:02:23.367174",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.342988",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "#establish a backend\n",
+    "os.environ[\"KERAS_BACKEND\"] = \"tensorflow\"  \n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "a97a1cd8",
+   "metadata": {
+    "papermill": {
+     "duration": 0.014927,
+     "end_time": "2024-04-28T15:02:23.396784",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.381857",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The dataset that is going to be used was created from <a href=\"https://docs.python.org/3/faq/general.html\">Python's FAQs page</a> and includes the common questions, their answers, and what category they fall under."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "id": "64202659",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:02:23.438376Z",
+     "iopub.status.busy": "2024-04-28T15:02:23.437869Z",
+     "iopub.status.idle": "2024-04-28T15:02:23.460230Z",
+     "shell.execute_reply": "2024-04-28T15:02:23.458839Z"
+    },
+    "papermill": {
+     "duration": 0.048638,
+     "end_time": "2024-04-28T15:02:23.463480",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.414842",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [],
+   "source": [
+    "#import the dataset\n",
+    "import pandas as pd\n",
+    "documents = pd.read_csv(\"/kaggle/input/python-faq-qa/python_faqs.csv\")\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "aaf1d88d",
+   "metadata": {
+    "papermill": {
+     "duration": 0.022901,
+     "end_time": "2024-04-28T15:02:23.509659",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.486758",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "### Data Exploration"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "id": "48ae55a8",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:02:23.551012Z",
+     "iopub.status.busy": "2024-04-28T15:02:23.550611Z",
+     "iopub.status.idle": "2024-04-28T15:02:23.568965Z",
+     "shell.execute_reply": "2024-04-28T15:02:23.567917Z"
+    },
+    "papermill": {
+     "duration": 0.040893,
+     "end_time": "2024-04-28T15:02:23.571507",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.530614",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>Question</th>\n",
+       "      <th>Answer</th>\n",
+       "      <th>Category</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>Why does Python use indentation for grouping o...</td>\n",
+       "      <td>Guido van Rossum believes that using indentati...</td>\n",
+       "      <td>design</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>Why am I getting strange results with simple a...</td>\n",
+       "      <td>See the next question.</td>\n",
+       "      <td>design</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>Why are floating-point calculations so inaccur...</td>\n",
+       "      <td>Users are often surprised by results like this...</td>\n",
+       "      <td>design</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>Why are Python strings immutable?</td>\n",
+       "      <td>\\nThere are several advantages.\\n\\nOne is perf...</td>\n",
+       "      <td>design</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>Why must 'self' be used explicitly in method d...</td>\n",
+       "      <td>The idea was borrowed from Modula-3. It turns ...</td>\n",
+       "      <td>design</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "                                            Question  \\\n",
+       "0  Why does Python use indentation for grouping o...   \n",
+       "1  Why am I getting strange results with simple a...   \n",
+       "2  Why are floating-point calculations so inaccur...   \n",
+       "3                  Why are Python strings immutable?   \n",
+       "4  Why must 'self' be used explicitly in method d...   \n",
+       "\n",
+       "                                              Answer Category  \n",
+       "0  Guido van Rossum believes that using indentati...   design  \n",
+       "1                             See the next question.   design  \n",
+       "2  Users are often surprised by results like this...   design  \n",
+       "3  \\nThere are several advantages.\\n\\nOne is perf...   design  \n",
+       "4  The idea was borrowed from Modula-3. It turns ...   design  "
+      ]
+     },
+     "execution_count": 6,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "documents.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "61a667cc",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:02:23.602957Z",
+     "iopub.status.busy": "2024-04-28T15:02:23.602507Z",
+     "iopub.status.idle": "2024-04-28T15:02:23.632354Z",
+     "shell.execute_reply": "2024-04-28T15:02:23.631077Z"
+    },
+    "papermill": {
+     "duration": 0.048716,
+     "end_time": "2024-04-28T15:02:23.635025",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.586309",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'pandas.core.frame.DataFrame'>\n",
+      "RangeIndex: 178 entries, 0 to 177\n",
+      "Data columns (total 3 columns):\n",
+      " #   Column    Non-Null Count  Dtype \n",
+      "---  ------    --------------  ----- \n",
+      " 0   Question  178 non-null    object\n",
+      " 1   Answer    178 non-null    object\n",
+      " 2   Category  178 non-null    object\n",
+      "dtypes: object(3)\n",
+      "memory usage: 4.3+ KB\n"
+     ]
+    }
+   ],
+   "source": [
+    "documents.info()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "d791cb50",
+   "metadata": {
+    "papermill": {
+     "duration": 0.014998,
+     "end_time": "2024-04-28T15:02:23.665337",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.650339",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The dataset contains 178 question-answer pairs."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "id": "b5001ae5",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:02:23.697337Z",
+     "iopub.status.busy": "2024-04-28T15:02:23.696962Z",
+     "iopub.status.idle": "2024-04-28T15:02:23.704953Z",
+     "shell.execute_reply": "2024-04-28T15:02:23.703812Z"
+    },
+    "papermill": {
+     "duration": 0.026934,
+     "end_time": "2024-04-28T15:02:23.707276",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.680342",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array(['design', 'extending', 'general', 'gui', 'installed', 'library',\n",
+       "       'programming', 'windows'], dtype=object)"
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "documents['Category'].unique()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "62954abb",
+   "metadata": {
+    "papermill": {
+     "duration": 0.016136,
+     "end_time": "2024-04-28T15:02:23.738915",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.722779",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The FAQ questions each fall into one of eight different categories."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "36336547",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-03-10T19:42:13.342177Z",
+     "iopub.status.busy": "2024-03-10T19:42:13.341717Z",
+     "iopub.status.idle": "2024-03-10T19:42:13.347632Z",
+     "shell.execute_reply": "2024-03-10T19:42:13.346071Z",
+     "shell.execute_reply.started": "2024-03-10T19:42:13.342135Z"
+    },
+    "papermill": {
+     "duration": 0.074704,
+     "end_time": "2024-04-28T15:02:23.828745",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.754041",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "## Modeling"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "526f62c8",
+   "metadata": {
+    "papermill": {
+     "duration": 0.014891,
+     "end_time": "2024-04-28T15:02:23.858941",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.844050",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "For this task I will be using the Gemma_2b model architecture, because I am running it on a personal computer that may not be able to support the 7b architecture. I will be using the GemmaCausalLM model, an end-to-end model for causal language modeling, configured with a preprocessor layer (GemmaCausalLMPreprocessor). By using a preprocessor, the string inputs are automatically preprocessed/tokenized, as opposed to having to do these steps prior to loading the model. The <a href=\"https://keras.io/api/keras_nlp/models/gemma/https://keras.io/api/keras_nlp/models/gemma/\" >Keras 3 API documentation</a> has more details on the different steps and options for Gemma's pretrained models."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "bd18895f",
+   "metadata": {
+    "papermill": {
+     "duration": 0.015371,
+     "end_time": "2024-04-28T15:02:23.889533",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.874162",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "#### Loading the Model:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "id": "40a9a7ad",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:02:23.922838Z",
+     "iopub.status.busy": "2024-04-28T15:02:23.921804Z",
+     "iopub.status.idle": "2024-04-28T15:02:28.145724Z",
+     "shell.execute_reply": "2024-04-28T15:02:28.144637Z"
+    },
+    "papermill": {
+     "duration": 4.243398,
+     "end_time": "2024-04-28T15:02:28.148415",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:23.905017",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Attaching 'tokenizer.json' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\n",
+      "Attaching 'tokenizer.json' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\n",
+      "Attaching 'assets/tokenizer/vocabulary.spm' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\n",
+      "normalizer.cc(51) LOG(INFO) precompiled_charsmap is empty. use identity normalization.\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Load a preprocessor layer from a preset.\n",
+    "preprocessor = keras_nlp.models.GemmaCausalLMPreprocessor.from_preset(\n",
+    "    \"gemma_2b_en\",\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "id": "b749fb93",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:02:28.181712Z",
+     "iopub.status.busy": "2024-04-28T15:02:28.181287Z",
+     "iopub.status.idle": "2024-04-28T15:03:56.913873Z",
+     "shell.execute_reply": "2024-04-28T15:03:56.912866Z"
+    },
+    "papermill": {
+     "duration": 88.751978,
+     "end_time": "2024-04-28T15:03:56.916266",
+     "exception": false,
+     "start_time": "2024-04-28T15:02:28.164288",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Attaching 'config.json' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\n",
+      "Attaching 'config.json' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\n",
+      "Attaching 'model.weights.h5' from model 'keras/gemma/keras/gemma_2b_en/2' to your Kaggle notebook...\n"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Preprocessor: \"gemma_causal_lm_preprocessor\"</span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1mPreprocessor: \"gemma_causal_lm_preprocessor\"\u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n",
+       "┃<span style=\"font-weight: bold\"> Tokenizer (type)                                   </span>┃<span style=\"font-weight: bold\">                                             Vocab # </span>┃\n",
+       "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n",
+       "│ gemma_tokenizer (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">GemmaTokenizer</span>)                   │                                             <span style=\"color: #00af00; text-decoration-color: #00af00\">256,000</span> │\n",
+       "└────────────────────────────────────────────────────┴─────────────────────────────────────────────────────┘\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n",
+       "┃\u001b[1m \u001b[0m\u001b[1mTokenizer (type)                                  \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m                                            Vocab #\u001b[0m\u001b[1m \u001b[0m┃\n",
+       "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n",
+       "│ gemma_tokenizer (\u001b[38;5;33mGemmaTokenizer\u001b[0m)                   │                                             \u001b[38;5;34m256,000\u001b[0m │\n",
+       "└────────────────────────────────────────────────────┴─────────────────────────────────────────────────────┘\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Model: \"gemma_causal_lm\"</span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1mModel: \"gemma_causal_lm\"\u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n",
+       "┃<span style=\"font-weight: bold\"> Layer (type)                  </span>┃<span style=\"font-weight: bold\"> Output Shape              </span>┃<span style=\"font-weight: bold\">         Param # </span>┃<span style=\"font-weight: bold\"> Connected to               </span>┃\n",
+       "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n",
+       "│ padding_mask (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)     │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>)              │               <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                          │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ token_ids (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)        │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>)              │               <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                          │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ gemma_backbone                │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">2048</span>)        │   <span style=\"color: #00af00; text-decoration-color: #00af00\">2,506,172,416</span> │ padding_mask[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>],        │\n",
+       "│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">GemmaBackbone</span>)               │                           │                 │ token_ids[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]            │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ token_embedding               │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">256000</span>)      │     <span style=\"color: #00af00; text-decoration-color: #00af00\">524,288,000</span> │ gemma_backbone[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]       │\n",
+       "│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">ReversibleEmbedding</span>)         │                           │                 │                            │\n",
+       "└───────────────────────────────┴───────────────────────────┴─────────────────┴────────────────────────────┘\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n",
+       "┃\u001b[1m \u001b[0m\u001b[1mLayer (type)                 \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mOutput Shape             \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m        Param #\u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mConnected to              \u001b[0m\u001b[1m \u001b[0m┃\n",
+       "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n",
+       "│ padding_mask (\u001b[38;5;33mInputLayer\u001b[0m)     │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m)              │               \u001b[38;5;34m0\u001b[0m │ -                          │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ token_ids (\u001b[38;5;33mInputLayer\u001b[0m)        │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m)              │               \u001b[38;5;34m0\u001b[0m │ -                          │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ gemma_backbone                │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m2048\u001b[0m)        │   \u001b[38;5;34m2,506,172,416\u001b[0m │ padding_mask[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m],        │\n",
+       "│ (\u001b[38;5;33mGemmaBackbone\u001b[0m)               │                           │                 │ token_ids[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m]            │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ token_embedding               │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m256000\u001b[0m)      │     \u001b[38;5;34m524,288,000\u001b[0m │ gemma_backbone[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m]       │\n",
+       "│ (\u001b[38;5;33mReversibleEmbedding\u001b[0m)         │                           │                 │                            │\n",
+       "└───────────────────────────────┴───────────────────────────┴─────────────────┴────────────────────────────┘\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Total params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">2,506,172,416</span> (9.34 GB)\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1m Total params: \u001b[0m\u001b[38;5;34m2,506,172,416\u001b[0m (9.34 GB)\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">2,506,172,416</span> (9.34 GB)\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1m Trainable params: \u001b[0m\u001b[38;5;34m2,506,172,416\u001b[0m (9.34 GB)\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Non-trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> (0.00 B)\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1m Non-trainable params: \u001b[0m\u001b[38;5;34m0\u001b[0m (0.00 B)\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "gemma_lm = keras_nlp.models.GemmaCausalLM.from_preset(\"gemma_2b_en\", preprocessor=preprocessor)\n",
+    "gemma_lm.summary()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "52a2a49b",
+   "metadata": {
+    "papermill": {
+     "duration": 0.017624,
+     "end_time": "2024-04-28T15:03:56.950977",
+     "exception": false,
+     "start_time": "2024-04-28T15:03:56.933353",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "#### Generating prompts:"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "bff7a3c1",
+   "metadata": {
+    "papermill": {
+     "duration": 0.017064,
+     "end_time": "2024-04-28T15:03:56.984705",
+     "exception": false,
+     "start_time": "2024-04-28T15:03:56.967641",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "Even before fine-tuning the model, we can use it to generate answers. First, we have to generate some sample prompts to be able to see how the model is doing at answering common Python questions, before we fine-tune it.First, we have to generate some sample prompts to be able to see how the model is doing at answering common Python questions, before we fine-tune it."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "id": "9efb7261",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:03:57.021264Z",
+     "iopub.status.busy": "2024-04-28T15:03:57.020847Z",
+     "iopub.status.idle": "2024-04-28T15:03:57.057718Z",
+     "shell.execute_reply": "2024-04-28T15:03:57.056682Z"
+    },
+    "papermill": {
+     "duration": 0.060824,
+     "end_time": "2024-04-28T15:03:57.062964",
+     "exception": false,
+     "start_time": "2024-04-28T15:03:57.002140",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "application/vnd.jupyter.widget-view+json": {
+       "model_id": "29f27c7b699249e48a7b86dde026f37e",
+       "version_major": 2,
+       "version_minor": 0
+      },
+      "text/plain": [
+       "  0%|          | 0/178 [00:00<?, ?it/s]"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "#Need to format each question-answer pair with a template that joins together and labels the Question, Answer and Category of each\n",
+    "#to be able to be interpreted by the model\n",
+    "from tqdm.notebook import tqdm\n",
+    "tqdm.pandas() \n",
+    "template = \"\\n\\nCategory:\\nkaggle-{Category}\\n\\nQuestion:\\n{Question}\\n\\nAnswer:\\n{Answer}\"\n",
+    "documents[\"prompt\"] = documents.progress_apply(lambda row: template.format(Category=row.Category,\n",
+    "                                                             Question=row.Question,\n",
+    "                                                             Answer=row.Answer), axis=1)\n",
+    "documents = documents.prompt.tolist()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c8ec5b48",
+   "metadata": {
+    "papermill": {
+     "duration": 0.017149,
+     "end_time": "2024-04-28T15:03:57.097427",
+     "exception": false,
+     "start_time": "2024-04-28T15:03:57.080278",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "For these prompts I selected 3 random questions from 3 different categories of FAQs, to get an idea of how the model performs on different types of questions.\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "id": "e710fe76",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:03:57.134995Z",
+     "iopub.status.busy": "2024-04-28T15:03:57.134573Z",
+     "iopub.status.idle": "2024-04-28T15:06:27.971429Z",
+     "shell.execute_reply": "2024-04-28T15:06:27.970093Z"
+    },
+    "papermill": {
+     "duration": 150.877616,
+     "end_time": "2024-04-28T15:06:27.992913",
+     "exception": false,
+     "start_time": "2024-04-28T15:03:57.115297",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR\n",
+      "I0000 00:00:1714316650.055012      66 device_compiler.h:186] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.\n",
+      "2024-04-28 15:04:10.055354: E external/local_xla/xla/stream_executor/stream_executor_internal.h:177] SetPriority unimplemented for this stream.\n",
+      "2024-04-28 15:04:10.055631: E external/local_xla/xla/stream_executor/stream_executor_internal.h:177] SetPriority unimplemented for this stream.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "\n",
+      "Category:\n",
+      "kaggle-\n",
+      "\n",
+      "Question:\n",
+      "What is Python?\n",
+      "\n",
+      "Answer:\n",
+      "Python is an interpreted, high-level, general-purpose programming language. It is\n",
+      "designed to maximize programmer productivity with a combination of high-level\n",
+      "syntax, dynamic typing, dynamic binding, and high-level data structures, and a\n",
+      "low-level interpreted language, dynamic binding, and a low-level programming\n",
+      "model. It is often used alongside other languages. Python is used to build web\n",
+      "applications, data analysis tools, game engines, and more.\n",
+      "\n",
+      "Category:\n",
+      "kaggle-\n",
+      "\n",
+      "Question:\n",
+      "What is R?\n",
+      "\n",
+      "Answer:\n",
+      "R is a programming language and software environment that supports statistical\n",
+      "computation and graphical display. R was developed by Ross Ihaka and Robert\n",
+      "Supportman in 1990, and it was originally called S-Plus. R is a programming language\n",
+      "and software environment for statistical computing and graphics.\n",
+      "\n",
+      "Category:\n",
+      "kaggle-\n",
+      "\n",
+      "Question:\n",
+      "What is RStudio?\n",
+      "\n",
+      "Answer:\n",
+      "RStudio is an integrated development environment (IDE) written in the programming\n",
+      "language R that was developed by a team of R developers, led by Jeffrey A.\n",
+      "Montgomery (author of RStudio) at RStudio\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Question from \"general\" category\n",
+    "\n",
+    "prompt = template.format(\n",
+    "    Question=\"What is Python?\",\n",
+    "    Answer=\"\",\n",
+    "    Category=\"\"\n",
+    ")\n",
+    "sampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\n",
+    "gemma_lm.compile(sampler=sampler)\n",
+    "print(gemma_lm.generate(prompt, max_length=256))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "727c8e01",
+   "metadata": {
+    "papermill": {
+     "duration": 0.018192,
+     "end_time": "2024-04-28T15:06:28.028999",
+     "exception": false,
+     "start_time": "2024-04-28T15:06:28.010807",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The specific question used in the prompt was given a pretty decent answer, but the other questions generated are not related to Python (they are about another programming language, R)."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "id": "d24421db",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:06:28.079341Z",
+     "iopub.status.busy": "2024-04-28T15:06:28.078306Z",
+     "iopub.status.idle": "2024-04-28T15:08:25.818585Z",
+     "shell.execute_reply": "2024-04-28T15:08:25.817547Z"
+    },
+    "papermill": {
+     "duration": 117.788498,
+     "end_time": "2024-04-28T15:08:25.840552",
+     "exception": false,
+     "start_time": "2024-04-28T15:06:28.052054",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "\n",
+      "Category:\n",
+      "kaggle-\n",
+      "\n",
+      "Question:\n",
+      "How do I catch the output from PyErr_Print() (or anything that prints to stdout/stderr)?\n",
+      "\n",
+      "Answer:\n",
+      "This can be done using the following code:\n",
+      "\n",
+      "import sys\n",
+      "def my_print(*args, **kwargs):\n",
+      "    if sys.stderr is not None:\n",
+      "        sys.stderr.write(\"%s\\n\" % (\", \".join(map(str,args)),)\n",
+      "    if sys.stdout is not None:\n",
+      "        sys.stdout.write(\"%s\" % (\" \".join(map(str,args)),)\n",
+      "    return\n",
+      "\n",
+      "my_print(\"hello world\")\n",
+      "\n",
+      "Output:\n",
+      "hello world\n",
+      "\n",
+      "\n",
+      "I hope this helps,\n",
+      "\n",
+      "-John\n",
+      "\n",
+      "I think you'll need to use ctypes to do it.\n",
+      "\n",
+      "-John\n",
+      "\n",
+      "\n",
+      "You need to catch the exception and then do a sys.stderr.flush() and sys.stdout.flush().\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Question from \"extending\" category\n",
+    "\n",
+    "prompt = template.format(\n",
+    "    Question=\"How do I catch the output from PyErr_Print() (or anything that prints to stdout/stderr)?\",\n",
+    "    Answer=\"\",\n",
+    "    Category=\"\"\n",
+    ")\n",
+    "sampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\n",
+    "gemma_lm.compile(sampler=sampler)\n",
+    "print(gemma_lm.generate(prompt, max_length=256))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "12148805",
+   "metadata": {
+    "papermill": {
+     "duration": 0.018034,
+     "end_time": "2024-04-28T15:08:25.877099",
+     "exception": false,
+     "start_time": "2024-04-28T15:08:25.859065",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The answer provided to this question is a bit confusing, it has text from someone named John, which seems a little out of place."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "id": "d9751456",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:08:25.916599Z",
+     "iopub.status.busy": "2024-04-28T15:08:25.916107Z",
+     "iopub.status.idle": "2024-04-28T15:11:05.193850Z",
+     "shell.execute_reply": "2024-04-28T15:11:05.192558Z"
+    },
+    "papermill": {
+     "duration": 159.319159,
+     "end_time": "2024-04-28T15:11:05.214811",
+     "exception": false,
+     "start_time": "2024-04-28T15:08:25.895652",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "\n",
+      "Category:\n",
+      "kaggle-\n",
+      "\n",
+      "Question:\n",
+      "How do I program using threads?\n",
+      "\n",
+      "Answer:\n",
+      "Threads are not a programming language feature. They’re a feature in the operating system that allows one program to use another program’s code. You can use threads in Java and in C++ (using the C++ thread class).\n",
+      "\n",
+      "The following code shows how to start the second thread.\n",
+      "\n",
+      "<code>Thread t1 = new Thread(new Runnable()\n",
+      "{\n",
+      "    @Override\n",
+      "    public void run()\n",
+      "    {\n",
+      "        System.out.println(\"Hello from thread 1!\");\n",
+      "    }\n",
+      "});\n",
+      "\n",
+      "t1.start();\n",
+      "t1.join(); // wait for thread to complete</code>\n",
+      "\n",
+      "In the above example, the second thread starts and immediately exits (because the thread is not doing anything). The thread will not run until the first thread completes (because the second thread waits for the first thread to complete).\n",
+      "\n",
+      "The following code shows how to use a thread to perform some work in the background and then return to the main thread.\n",
+      "\n",
+      "<code>Thread t = new Thread(new Runnable()\n",
+      "{\n",
+      "    public void run() \n",
+      "    {\n",
+      "        int i;\n",
+      "        for(i = 0; i <=\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Question from \"library\" category\n",
+    "\n",
+    "prompt = template.format(\n",
+    "    Question=\"How do I program using threads?\",\n",
+    "    Answer=\"\",\n",
+    "    Category=\"\"\n",
+    ")\n",
+    "sampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\n",
+    "gemma_lm.compile(sampler=sampler)\n",
+    "print(gemma_lm.generate(prompt, max_length=256))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "c9d84104",
+   "metadata": {
+    "papermill": {
+     "duration": 0.018143,
+     "end_time": "2024-04-28T15:11:05.251095",
+     "exception": false,
+     "start_time": "2024-04-28T15:11:05.232952",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The above answers look okay, but some parts of them do not completely make sense for what is being asked. Let's see if we can improve them by fine-tuning the model."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9295cc1f",
+   "metadata": {
+    "papermill": {
+     "duration": 0.017853,
+     "end_time": "2024-04-28T15:11:05.286973",
+     "exception": false,
+     "start_time": "2024-04-28T15:11:05.269120",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "### Fine-tuning with LoRA (Low-Rank Adaptation):"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "27b6729e",
+   "metadata": {
+    "papermill": {
+     "duration": 0.01777,
+     "end_time": "2024-04-28T15:11:05.322650",
+     "exception": false,
+     "start_time": "2024-04-28T15:11:05.304880",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "Gemma models and pre-trained, however, a process called fine-tuning can be used to further train them on a particular dataset!"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "9baf4018",
+   "metadata": {
+    "papermill": {
+     "duration": 0.017869,
+     "end_time": "2024-04-28T15:11:05.358831",
+     "exception": false,
+     "start_time": "2024-04-28T15:11:05.340962",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "According to the documentation, **LoRA** is a form of PEFT, or parameter-efficient fine-tuning. This is because it works by reducing down the number of trainable parameters and freezing model weights, causing the model to run faster and be more memory-efficient, while maintaining high-quality outputs! \n",
+    "You can learn more about the specifics of how LoRA works to fine-tune Gemma models <a href=\"https://colab.research.google.com/github/google/generative-ai-docs/blob/main/site/en/gemma/docs/lora_tuning.ipynb#scrollTo=lSGRSsRPgkzKhttps://colab.research.google.com/github/google/generative-ai-docs/blob/main/site/en/gemma/docs/lora_tuning.ipynb#scrollTo=lSGRSsRPgkzK\">here!</a>\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "8bb2137a",
+   "metadata": {
+    "papermill": {
+     "duration": 0.018004,
+     "end_time": "2024-04-28T15:11:05.395078",
+     "exception": false,
+     "start_time": "2024-04-28T15:11:05.377074",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "There are other options for tuning Gemma models, but for this demo, LoRA fine-tuning via KerasNLP is a good choice because it is known to be efficient and effective."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "e2885ac7",
+   "metadata": {
+    "papermill": {
+     "duration": 0.017716,
+     "end_time": "2024-04-28T15:11:05.431008",
+     "exception": false,
+     "start_time": "2024-04-28T15:11:05.413292",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "When enabling LoRA, the rank must be specified. The rank is related to the number of trainable parameters to be used, and a higher rank indicates that more detailed changes can be made to the model. However, the higher the rank, the more computationally expensive it will be. Therefore, it is best to start with a relatively low rank. Here, we use rank=4."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "id": "7fc018c1",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:11:05.469591Z",
+     "iopub.status.busy": "2024-04-28T15:11:05.468721Z",
+     "iopub.status.idle": "2024-04-28T15:11:05.642699Z",
+     "shell.execute_reply": "2024-04-28T15:11:05.641528Z"
+    },
+    "papermill": {
+     "duration": 0.196058,
+     "end_time": "2024-04-28T15:11:05.645071",
+     "exception": false,
+     "start_time": "2024-04-28T15:11:05.449013",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Preprocessor: \"gemma_causal_lm_preprocessor\"</span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1mPreprocessor: \"gemma_causal_lm_preprocessor\"\u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n",
+       "┃<span style=\"font-weight: bold\"> Tokenizer (type)                                   </span>┃<span style=\"font-weight: bold\">                                             Vocab # </span>┃\n",
+       "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n",
+       "│ gemma_tokenizer (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">GemmaTokenizer</span>)                   │                                             <span style=\"color: #00af00; text-decoration-color: #00af00\">256,000</span> │\n",
+       "└────────────────────────────────────────────────────┴─────────────────────────────────────────────────────┘\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n",
+       "┃\u001b[1m \u001b[0m\u001b[1mTokenizer (type)                                  \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m                                            Vocab #\u001b[0m\u001b[1m \u001b[0m┃\n",
+       "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n",
+       "│ gemma_tokenizer (\u001b[38;5;33mGemmaTokenizer\u001b[0m)                   │                                             \u001b[38;5;34m256,000\u001b[0m │\n",
+       "└────────────────────────────────────────────────────┴─────────────────────────────────────────────────────┘\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\">Model: \"gemma_causal_lm\"</span>\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1mModel: \"gemma_causal_lm\"\u001b[0m\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\">┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n",
+       "┃<span style=\"font-weight: bold\"> Layer (type)                  </span>┃<span style=\"font-weight: bold\"> Output Shape              </span>┃<span style=\"font-weight: bold\">         Param # </span>┃<span style=\"font-weight: bold\"> Connected to               </span>┃\n",
+       "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n",
+       "│ padding_mask (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)     │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>)              │               <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                          │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ token_ids (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">InputLayer</span>)        │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>)              │               <span style=\"color: #00af00; text-decoration-color: #00af00\">0</span> │ -                          │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ gemma_backbone                │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">2048</span>)        │   <span style=\"color: #00af00; text-decoration-color: #00af00\">2,507,536,384</span> │ padding_mask[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>],        │\n",
+       "│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">GemmaBackbone</span>)               │                           │                 │ token_ids[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]            │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ token_embedding               │ (<span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00d7ff; text-decoration-color: #00d7ff\">None</span>, <span style=\"color: #00af00; text-decoration-color: #00af00\">256000</span>)      │     <span style=\"color: #00af00; text-decoration-color: #00af00\">524,288,000</span> │ gemma_backbone[<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>][<span style=\"color: #00af00; text-decoration-color: #00af00\">0</span>]       │\n",
+       "│ (<span style=\"color: #0087ff; text-decoration-color: #0087ff\">ReversibleEmbedding</span>)         │                           │                 │                            │\n",
+       "└───────────────────────────────┴───────────────────────────┴─────────────────┴────────────────────────────┘\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n",
+       "┃\u001b[1m \u001b[0m\u001b[1mLayer (type)                 \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mOutput Shape             \u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1m        Param #\u001b[0m\u001b[1m \u001b[0m┃\u001b[1m \u001b[0m\u001b[1mConnected to              \u001b[0m\u001b[1m \u001b[0m┃\n",
+       "┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩\n",
+       "│ padding_mask (\u001b[38;5;33mInputLayer\u001b[0m)     │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m)              │               \u001b[38;5;34m0\u001b[0m │ -                          │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ token_ids (\u001b[38;5;33mInputLayer\u001b[0m)        │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m)              │               \u001b[38;5;34m0\u001b[0m │ -                          │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ gemma_backbone                │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m2048\u001b[0m)        │   \u001b[38;5;34m2,507,536,384\u001b[0m │ padding_mask[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m],        │\n",
+       "│ (\u001b[38;5;33mGemmaBackbone\u001b[0m)               │                           │                 │ token_ids[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m]            │\n",
+       "├───────────────────────────────┼───────────────────────────┼─────────────────┼────────────────────────────┤\n",
+       "│ token_embedding               │ (\u001b[38;5;45mNone\u001b[0m, \u001b[38;5;45mNone\u001b[0m, \u001b[38;5;34m256000\u001b[0m)      │     \u001b[38;5;34m524,288,000\u001b[0m │ gemma_backbone[\u001b[38;5;34m0\u001b[0m][\u001b[38;5;34m0\u001b[0m]       │\n",
+       "│ (\u001b[38;5;33mReversibleEmbedding\u001b[0m)         │                           │                 │                            │\n",
+       "└───────────────────────────────┴───────────────────────────┴─────────────────┴────────────────────────────┘\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Total params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">2,507,536,384</span> (9.34 GB)\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1m Total params: \u001b[0m\u001b[38;5;34m2,507,536,384\u001b[0m (9.34 GB)\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">1,363,968</span> (5.20 MB)\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1m Trainable params: \u001b[0m\u001b[38;5;34m1,363,968\u001b[0m (5.20 MB)\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    },
+    {
+     "data": {
+      "text/html": [
+       "<pre style=\"white-space:pre;overflow-x:auto;line-height:normal;font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace\"><span style=\"font-weight: bold\"> Non-trainable params: </span><span style=\"color: #00af00; text-decoration-color: #00af00\">2,506,172,416</span> (9.34 GB)\n",
+       "</pre>\n"
+      ],
+      "text/plain": [
+       "\u001b[1m Non-trainable params: \u001b[0m\u001b[38;5;34m2,506,172,416\u001b[0m (9.34 GB)\n"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "# Enable LoRA freeze weights on the backbone, while allowing Lora to tune the query and value (question and answer) layers\n",
+    "\n",
+    "gemma_lm.backbone.enable_lora(rank=4)\n",
+    "gemma_lm.summary()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "87d4f693",
+   "metadata": {
+    "papermill": {
+     "duration": 0.019119,
+     "end_time": "2024-04-28T15:11:05.683899",
+     "exception": false,
+     "start_time": "2024-04-28T15:11:05.664780",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The total params are a little more than before enabling Lora, now 2,507,536,382 from 2,506,172,416. However, the trainable params are only 1,363,968 out of those whereas all of the params were trainable previously. This is because LoRa reduces trainable parameters in order to reduce the time and memory required for the model to run."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "id": "ecd88b54",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T15:11:05.725079Z",
+     "iopub.status.busy": "2024-04-28T15:11:05.724233Z",
+     "iopub.status.idle": "2024-04-28T18:30:07.674083Z",
+     "shell.execute_reply": "2024-04-28T18:30:07.670601Z"
+    },
+    "papermill": {
+     "duration": 11941.973962,
+     "end_time": "2024-04-28T18:30:07.677275",
+     "exception": false,
+     "start_time": "2024-04-28T15:11:05.703313",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\u001b[1m178/178\u001b[0m \u001b[32m━━━━━━━━━━━━━━━━━━━━\u001b[0m\u001b[37m\u001b[0m \u001b[1m11941s\u001b[0m 67s/step - loss: 0.9703 - sparse_categorical_accuracy: 0.5260\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "<keras.src.callbacks.history.History at 0x7cd6101b2830>"
+      ]
+     },
+     "execution_count": 16,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Limit the input sequence length to 512 (to control memory usage).\n",
+    "gemma_lm.preprocessor.sequence_length = 512\n",
+    "#The Adam optimizer is used in the Gemma documentation, but other optimizers can be used as well\n",
+    "optimizer = keras.optimizers.AdamW(\n",
+    "    learning_rate=5e-5,\n",
+    "    weight_decay=0.01,\n",
+    ")\n",
+    "# Exclude layernorm and bias terms from decay.\n",
+    "optimizer.exclude_from_weight_decay(var_names=[\"bias\", \"scale\"])\n",
+    "\n",
+    "gemma_lm.compile(\n",
+    "    loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),\n",
+    "    optimizer=optimizer,\n",
+    "    weighted_metrics=[keras.metrics.SparseCategoricalAccuracy()],\n",
+    ")\n",
+    "gemma_lm.fit(documents, epochs=1, batch_size=1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "482d921e",
+   "metadata": {
+    "papermill": {
+     "duration": 0.036422,
+     "end_time": "2024-04-28T18:30:07.750320",
+     "exception": false,
+     "start_time": "2024-04-28T18:30:07.713898",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "I used the same hyperparameter values as the documentation <a href = \"https://ai.google.dev/gemma/docs/lora_tuning#lora_fine-tuninghttps://ai.google.dev/gemma/docs/lora_tuning#lora_fine-tuning\">here</a>. Some other options for fine-tuning parameters include using a different optimizer, testing out different learning rates and weight decays, and changing the number of epochs and batch size. With respect to the loss, the model is adjusting its weights with each step. How fast or slow it does this adjustment is dictated by the **learning rate**. **Weight decay** is a regularization technique that will cause the weights to exponentially decay (via the specified learning rate) until they equal zero."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "20ac4e62",
+   "metadata": {
+    "papermill": {
+     "duration": 0.036004,
+     "end_time": "2024-04-28T18:30:07.822566",
+     "exception": false,
+     "start_time": "2024-04-28T18:30:07.786562",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "Generally, models perform better with multiple epochs, as the model is given more time to understand the trends within the data. Also, a larger batch size (the group of data points that the model is being fit on) can improve performance, but it can also cause overfitting (model is over-trained on the training data and therefore does not know how to respond to test/unseen data). "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "316a6220",
+   "metadata": {
+    "papermill": {
+     "duration": 0.035922,
+     "end_time": "2024-04-28T18:30:07.894498",
+     "exception": false,
+     "start_time": "2024-04-28T18:30:07.858576",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "As you can see, the above model took a long time to run. This runtime will only increase as you increase the number of epochs and the batch size. Therefore you must keep in mind the tradeoff between optimal model performance and runtime/memory usage."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "77726655",
+   "metadata": {
+    "papermill": {
+     "duration": 0.036122,
+     "end_time": "2024-04-28T18:30:07.967382",
+     "exception": false,
+     "start_time": "2024-04-28T18:30:07.931260",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "### Inference after fine-tuning"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "6aac3e26",
+   "metadata": {
+    "papermill": {
+     "duration": 0.035744,
+     "end_time": "2024-04-28T18:30:08.039411",
+     "exception": false,
+     "start_time": "2024-04-28T18:30:08.003667",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "Let's try out the same sample questions used before to see how the answers have changed after fine-tuning."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "id": "a7fc2cac",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T18:30:08.118056Z",
+     "iopub.status.busy": "2024-04-28T18:30:08.117092Z",
+     "iopub.status.idle": "2024-04-28T18:30:57.978638Z",
+     "shell.execute_reply": "2024-04-28T18:30:57.977392Z"
+    },
+    "papermill": {
+     "duration": 49.940673,
+     "end_time": "2024-04-28T18:30:58.016742",
+     "exception": false,
+     "start_time": "2024-04-28T18:30:08.076069",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "\n",
+      "Category:\n",
+      "kaggle-\n",
+      "\n",
+      "Question:\n",
+      "What is Python?\n",
+      "\n",
+      "Answer:\n",
+      "Python is a general-purpose, high-level programming language. The language is designed to be both readable and dynamically typed. Python is widely used to create web-based applications and for scientific computing.\n",
+      "\n",
+      "Tags:\n",
+      "python\n"
+     ]
+    }
+   ],
+   "source": [
+    "prompt = template.format(\n",
+    "    Question=\"What is Python?\",\n",
+    "    Answer=\"\",\n",
+    "    Category=\"\"\n",
+    ")\n",
+    "sampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\n",
+    "gemma_lm.compile(sampler=sampler)\n",
+    "print(gemma_lm.generate(prompt, max_length=256))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "id": "efa903ab",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T18:30:58.091873Z",
+     "iopub.status.busy": "2024-04-28T18:30:58.090785Z",
+     "iopub.status.idle": "2024-04-28T18:33:15.159396Z",
+     "shell.execute_reply": "2024-04-28T18:33:15.158273Z"
+    },
+    "papermill": {
+     "duration": 137.143787,
+     "end_time": "2024-04-28T18:33:15.196999",
+     "exception": false,
+     "start_time": "2024-04-28T18:30:58.053212",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "\n",
+      "Category:\n",
+      "kaggle-\n",
+      "\n",
+      "Question:\n",
+      "How do I catch the output from PyErr_Print() (or anything that prints to stdout/stderr)?\n",
+      "\n",
+      "Answer:\n",
+      "The output of PyErr_Print() is sent to stderr, not stdout.\n",
+      "\n",
+      "So, the following code will catch the output of an error print:\n",
+      "\n",
+      "#include <stdlib.h>\n",
+      "#include <stdio.h>\n",
+      "#include <string.h>\n",
+      "\n",
+      "#include <Python.h>\n",
+      "\n",
+      "int main(int argc, char* argv[])\n",
+      "{\n",
+      "\tchar buffer[1024];\n",
+      "\n",
+      "\tPy_Initialize();\n",
+      "\n",
+      "\tif (PyErr_Occurred())\n",
+      "\t{\n",
+      "\t\tfprintf(stderr, \"Error in initializing Python: %s\\n\",\n",
+      "\t\t\tPy_GetError_string(Py_GetError()));\n",
+      "\t}\n",
+      "\n",
+      "\t/* This will catch the output of PyErr_print_exception. */\n",
+      "\tPyRun_SimpleString(\"print \\\"Hello World!\\\";\");\n",
+      "\tPyRun_SimpleString(\"print \\\"Goodbye World!\\\";\");\n",
+      "\n",
+      "\tPy_Finalize();\n",
+      "\n",
+      "\treturn 0;\n",
+      "}\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "prompt = template.format(\n",
+    "    Question= \"How do I catch the output from PyErr_Print() (or anything that prints to stdout/stderr)?\",\n",
+    "    Answer=\"\",\n",
+    "    Category=\"\"\n",
+    ")\n",
+    "sampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\n",
+    "gemma_lm.compile(sampler=sampler)\n",
+    "print(gemma_lm.generate(prompt, max_length=256))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "id": "1e4358fc",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-04-28T18:33:15.270366Z",
+     "iopub.status.busy": "2024-04-28T18:33:15.269859Z",
+     "iopub.status.idle": "2024-04-28T18:35:26.724090Z",
+     "shell.execute_reply": "2024-04-28T18:35:26.722999Z"
+    },
+    "papermill": {
+     "duration": 131.529835,
+     "end_time": "2024-04-28T18:35:26.762049",
+     "exception": false,
+     "start_time": "2024-04-28T18:33:15.232214",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "\n",
+      "Category:\n",
+      "kaggle-\n",
+      "\n",
+      "Question:\n",
+      "How do I program using threads?\n",
+      "\n",
+      "Answer:\n",
+      "The simplest way to do this is to use Python's threading library.\n",
+      "The basic idea of threading is to have multiple threads of Python running simultaneously.\n",
+      "Each thread can execute code in isolation, and share data with other threads.\n",
+      "Threads are created with a call to a threading.Thread() function, and they are joined with a call to the Thread.join() method.\n",
+      "\n",
+      "\n",
+      "The code below demonstrates how to use threads:\n",
+      "\n",
+      "import threading\n",
+      "import time\n",
+      "\n",
+      "def print_time():\n",
+      "    while True:\n",
+      "        print \"Thread: %s: %s\" % (threading.currentThread().getName(), time.ctime())\n",
+      "        time.sleep(1)\n",
+      "\n",
+      "thread = threading.Thread(target=print_time)\n",
+      "time.sleep(2)\n",
+      "\n",
+      "print \"Main thread: %s\" % threading.currentThread().getName()\n",
+      "thread.start()\n",
+      "thread.join()\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "prompt = template.format(\n",
+    "    Question= \"How do I program using threads?\",\n",
+    "    Answer=\"\",\n",
+    "    Category=\"\"\n",
+    ")\n",
+    "sampler = keras_nlp.samplers.TopKSampler(k=5, seed=2)\n",
+    "gemma_lm.compile(sampler=sampler)\n",
+    "print(gemma_lm.generate(prompt, max_length=256))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "de2b103b",
+   "metadata": {
+    "papermill": {
+     "duration": 0.035638,
+     "end_time": "2024-04-28T18:35:26.832841",
+     "exception": false,
+     "start_time": "2024-04-28T18:35:26.797203",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The generated answers for our sample questions are looking much better and making more sense after-fine tuning!"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "231331f1",
+   "metadata": {
+    "papermill": {
+     "duration": 0.035854,
+     "end_time": "2024-04-28T18:35:26.904670",
+     "exception": false,
+     "start_time": "2024-04-28T18:35:26.868816",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "The next steps would be to continue tying out different hyperparameter values for fine-tuning to see how much we can improve the accuracy and the answers we get!"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "cde13040",
+   "metadata": {
+    "execution": {
+     "iopub.execute_input": "2024-03-10T19:42:44.013473Z",
+     "iopub.status.busy": "2024-03-10T19:42:44.012939Z",
+     "iopub.status.idle": "2024-03-10T19:42:44.018408Z",
+     "shell.execute_reply": "2024-03-10T19:42:44.017182Z",
+     "shell.execute_reply.started": "2024-03-10T19:42:44.013440Z"
+    },
+    "papermill": {
+     "duration": 0.03543,
+     "end_time": "2024-04-28T18:35:26.976002",
+     "exception": false,
+     "start_time": "2024-04-28T18:35:26.940572",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "### Conclusion"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "4bb24f0f",
+   "metadata": {
+    "papermill": {
+     "duration": 0.035006,
+     "end_time": "2024-04-28T18:35:27.046653",
+     "exception": false,
+     "start_time": "2024-04-28T18:35:27.011647",
+     "status": "completed"
+    },
+    "tags": []
+   },
+   "source": [
+    "Google's new Gemma LLM models are lightweight and user friendly as they can be used with familiar APIs such as Keras. In this demo, I show you how to use Gemma with KerasNLP to answer common questions about the programming language Python! "
+   ]
+  }
+ ],
+ "metadata": {
+  "kaggle": {
+   "accelerator": "none",
+   "dataSources": [
+    {
+     "datasetId": 4574236,
+     "sourceId": 7809963,
+     "sourceType": "datasetVersion"
+    },
+    {
+     "modelInstanceId": 5171,
+     "sourceId": 11371,
+     "sourceType": "modelInstanceVersion"
+    }
+   ],
+   "dockerImageVersionId": 30664,
+   "isGpuEnabled": false,
+   "isInternetEnabled": true,
+   "language": "python",
+   "sourceType": "notebook"
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.10.13"
+  },
+  "papermill": {
+   "default_parameters": {},
+   "duration": 12847.755673,
+   "end_time": "2024-04-28T18:35:31.432856",
+   "environment_variables": {},
+   "exception": null,
+   "input_path": "__notebook__.ipynb",
+   "output_path": "__notebook__.ipynb",
+   "parameters": {},
+   "start_time": "2024-04-28T15:01:23.677183",
+   "version": "2.5.0"
+  },
+  "widgets": {
+   "application/vnd.jupyter.widget-state+json": {
+    "state": {
+     "0f990aa0fb15483da96d4fe0cb090bb7": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "_model_module": "@jupyter-widgets/base",
+       "_model_module_version": "1.2.0",
+       "_model_name": "LayoutModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/base",
+       "_view_module_version": "1.2.0",
+       "_view_name": "LayoutView",
+       "align_content": null,
+       "align_items": null,
+       "align_self": null,
+       "border": null,
+       "bottom": null,
+       "display": null,
+       "flex": null,
+       "flex_flow": null,
+       "grid_area": null,
+       "grid_auto_columns": null,
+       "grid_auto_flow": null,
+       "grid_auto_rows": null,
+       "grid_column": null,
+       "grid_gap": null,
+       "grid_row": null,
+       "grid_template_areas": null,
+       "grid_template_columns": null,
+       "grid_template_rows": null,
+       "height": null,
+       "justify_content": null,
+       "justify_items": null,
+       "left": null,
+       "margin": null,
+       "max_height": null,
+       "max_width": null,
+       "min_height": null,
+       "min_width": null,
+       "object_fit": null,
+       "object_position": null,
+       "order": null,
+       "overflow": null,
+       "overflow_x": null,
+       "overflow_y": null,
+       "padding": null,
+       "right": null,
+       "top": null,
+       "visibility": null,
+       "width": null
+      }
+     },
+     "18f33a7f5e6f40b7835846e15a9c0d7b": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "_model_module": "@jupyter-widgets/base",
+       "_model_module_version": "1.2.0",
+       "_model_name": "LayoutModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/base",
+       "_view_module_version": "1.2.0",
+       "_view_name": "LayoutView",
+       "align_content": null,
+       "align_items": null,
+       "align_self": null,
+       "border": null,
+       "bottom": null,
+       "display": null,
+       "flex": null,
+       "flex_flow": null,
+       "grid_area": null,
+       "grid_auto_columns": null,
+       "grid_auto_flow": null,
+       "grid_auto_rows": null,
+       "grid_column": null,
+       "grid_gap": null,
+       "grid_row": null,
+       "grid_template_areas": null,
+       "grid_template_columns": null,
+       "grid_template_rows": null,
+       "height": null,
+       "justify_content": null,
+       "justify_items": null,
+       "left": null,
+       "margin": null,
+       "max_height": null,
+       "max_width": null,
+       "min_height": null,
+       "min_width": null,
+       "object_fit": null,
+       "object_position": null,
+       "order": null,
+       "overflow": null,
+       "overflow_x": null,
+       "overflow_y": null,
+       "padding": null,
+       "right": null,
+       "top": null,
+       "visibility": null,
+       "width": null
+      }
+     },
+     "29f27c7b699249e48a7b86dde026f37e": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HBoxModel",
+      "state": {
+       "_dom_classes": [],
+       "_model_module": "@jupyter-widgets/controls",
+       "_model_module_version": "1.5.0",
+       "_model_name": "HBoxModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/controls",
+       "_view_module_version": "1.5.0",
+       "_view_name": "HBoxView",
+       "box_style": "",
+       "children": [
+        "IPY_MODEL_c2c9c6909f424f6db08705f7bff8f5bf",
+        "IPY_MODEL_96db735b1e084bb08b86bc6ef3a30d3d",
+        "IPY_MODEL_61cbf3e097694a5d9073902b321ceac6"
+       ],
+       "layout": "IPY_MODEL_0f990aa0fb15483da96d4fe0cb090bb7"
+      }
+     },
+     "37a614669b24494dafa9dae57cd91b38": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "ProgressStyleModel",
+      "state": {
+       "_model_module": "@jupyter-widgets/controls",
+       "_model_module_version": "1.5.0",
+       "_model_name": "ProgressStyleModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/base",
+       "_view_module_version": "1.2.0",
+       "_view_name": "StyleView",
+       "bar_color": null,
+       "description_width": ""
+      }
+     },
+     "61cbf3e097694a5d9073902b321ceac6": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HTMLModel",
+      "state": {
+       "_dom_classes": [],
+       "_model_module": "@jupyter-widgets/controls",
+       "_model_module_version": "1.5.0",
+       "_model_name": "HTMLModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/controls",
+       "_view_module_version": "1.5.0",
+       "_view_name": "HTMLView",
+       "description": "",
+       "description_tooltip": null,
+       "layout": "IPY_MODEL_b6966538daaf464c833e96843872acaa",
+       "placeholder": "​",
+       "style": "IPY_MODEL_a7d4aaf9ffa54b18a64409d52aff3262",
+       "value": " 178/178 [00:00&lt;00:00, 7523.57it/s]"
+      }
+     },
+     "96db735b1e084bb08b86bc6ef3a30d3d": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "FloatProgressModel",
+      "state": {
+       "_dom_classes": [],
+       "_model_module": "@jupyter-widgets/controls",
+       "_model_module_version": "1.5.0",
+       "_model_name": "FloatProgressModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/controls",
+       "_view_module_version": "1.5.0",
+       "_view_name": "ProgressView",
+       "bar_style": "success",
+       "description": "",
+       "description_tooltip": null,
+       "layout": "IPY_MODEL_a928ec4af08642309c950f486662b036",
+       "max": 178.0,
+       "min": 0.0,
+       "orientation": "horizontal",
+       "style": "IPY_MODEL_37a614669b24494dafa9dae57cd91b38",
+       "value": 178.0
+      }
+     },
+     "a7d4aaf9ffa54b18a64409d52aff3262": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "DescriptionStyleModel",
+      "state": {
+       "_model_module": "@jupyter-widgets/controls",
+       "_model_module_version": "1.5.0",
+       "_model_name": "DescriptionStyleModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/base",
+       "_view_module_version": "1.2.0",
+       "_view_name": "StyleView",
+       "description_width": ""
+      }
+     },
+     "a928ec4af08642309c950f486662b036": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "_model_module": "@jupyter-widgets/base",
+       "_model_module_version": "1.2.0",
+       "_model_name": "LayoutModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/base",
+       "_view_module_version": "1.2.0",
+       "_view_name": "LayoutView",
+       "align_content": null,
+       "align_items": null,
+       "align_self": null,
+       "border": null,
+       "bottom": null,
+       "display": null,
+       "flex": null,
+       "flex_flow": null,
+       "grid_area": null,
+       "grid_auto_columns": null,
+       "grid_auto_flow": null,
+       "grid_auto_rows": null,
+       "grid_column": null,
+       "grid_gap": null,
+       "grid_row": null,
+       "grid_template_areas": null,
+       "grid_template_columns": null,
+       "grid_template_rows": null,
+       "height": null,
+       "justify_content": null,
+       "justify_items": null,
+       "left": null,
+       "margin": null,
+       "max_height": null,
+       "max_width": null,
+       "min_height": null,
+       "min_width": null,
+       "object_fit": null,
+       "object_position": null,
+       "order": null,
+       "overflow": null,
+       "overflow_x": null,
+       "overflow_y": null,
+       "padding": null,
+       "right": null,
+       "top": null,
+       "visibility": null,
+       "width": null
+      }
+     },
+     "b6966538daaf464c833e96843872acaa": {
+      "model_module": "@jupyter-widgets/base",
+      "model_module_version": "1.2.0",
+      "model_name": "LayoutModel",
+      "state": {
+       "_model_module": "@jupyter-widgets/base",
+       "_model_module_version": "1.2.0",
+       "_model_name": "LayoutModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/base",
+       "_view_module_version": "1.2.0",
+       "_view_name": "LayoutView",
+       "align_content": null,
+       "align_items": null,
+       "align_self": null,
+       "border": null,
+       "bottom": null,
+       "display": null,
+       "flex": null,
+       "flex_flow": null,
+       "grid_area": null,
+       "grid_auto_columns": null,
+       "grid_auto_flow": null,
+       "grid_auto_rows": null,
+       "grid_column": null,
+       "grid_gap": null,
+       "grid_row": null,
+       "grid_template_areas": null,
+       "grid_template_columns": null,
+       "grid_template_rows": null,
+       "height": null,
+       "justify_content": null,
+       "justify_items": null,
+       "left": null,
+       "margin": null,
+       "max_height": null,
+       "max_width": null,
+       "min_height": null,
+       "min_width": null,
+       "object_fit": null,
+       "object_position": null,
+       "order": null,
+       "overflow": null,
+       "overflow_x": null,
+       "overflow_y": null,
+       "padding": null,
+       "right": null,
+       "top": null,
+       "visibility": null,
+       "width": null
+      }
+     },
+     "c2c9c6909f424f6db08705f7bff8f5bf": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "HTMLModel",
+      "state": {
+       "_dom_classes": [],
+       "_model_module": "@jupyter-widgets/controls",
+       "_model_module_version": "1.5.0",
+       "_model_name": "HTMLModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/controls",
+       "_view_module_version": "1.5.0",
+       "_view_name": "HTMLView",
+       "description": "",
+       "description_tooltip": null,
+       "layout": "IPY_MODEL_18f33a7f5e6f40b7835846e15a9c0d7b",
+       "placeholder": "​",
+       "style": "IPY_MODEL_c88c600626e5464a82660879ff0b3edc",
+       "value": "100%"
+      }
+     },
+     "c88c600626e5464a82660879ff0b3edc": {
+      "model_module": "@jupyter-widgets/controls",
+      "model_module_version": "1.5.0",
+      "model_name": "DescriptionStyleModel",
+      "state": {
+       "_model_module": "@jupyter-widgets/controls",
+       "_model_module_version": "1.5.0",
+       "_model_name": "DescriptionStyleModel",
+       "_view_count": null,
+       "_view_module": "@jupyter-widgets/base",
+       "_view_module_version": "1.2.0",
+       "_view_name": "StyleView",
+       "description_width": ""
+      }
+     }
+    },
+    "version_major": 2,
+    "version_minor": 0
+   }
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
